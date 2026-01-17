@@ -49,11 +49,15 @@ localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1080;
 
-// Donut parameters
+// Screen parameters
 localparam [11:0] CENTER_X = 960;      // Center of screen
 localparam [11:0] CENTER_Y = 540;      // Center of screen
-localparam [11:0] DONUT_OUTER = 300;   // Outer radius
-localparam [11:0] DONUT_INNER = 150;   // Inner radius (hole)
+localparam [11:0] SCREEN_WIDTH = 1920;
+localparam [11:0] SCREEN_HEIGHT = 1080;
+
+// Torus parameters (R = major radius, r = minor radius)
+localparam [15:0] TORUS_R = 200;       // Major radius (distance from center to tube center)
+localparam [15:0] TORUS_r = 80;        // Minor radius (tube radius)
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
@@ -74,16 +78,16 @@ reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
 
-// Donut rotation counter
-reg [15:0] rotation_counter;
+// Rotation angles (A and B control the rotation like in the C code)
+reg [15:0] angle_A;   // X-axis rotation
+reg [15:0] angle_B;   // Z-axis rotation
 
-// Donut calculation variables
-reg signed [23:0] dx;
-reg signed [23:0] dy;
-reg signed [23:0] dist_sq;
-reg [23:0] dist_sq_abs;
-reg [23:0] radius_sq_outer;
-reg [23:0] radius_sq_inner;
+// 3D projection variables
+reg signed [31:0] x3d, y3d, z3d;        // 3D coordinates before rotation
+reg signed [31:0] x_rot, y_rot, z_rot;  // 3D coordinates after rotation
+reg signed [31:0] D;                    // Depth/perspective term
+reg signed [15:0] x_proj, y_proj;       // 2D projected coordinates
+reg [23:0] shading_val;                 // Shading/brightness
 
 
 
@@ -91,49 +95,73 @@ always @(posedge clk_i) begin
     // ALL OF OUR CALCULATIONS PER PIXEL
     
     if(cen_i) begin
-       //vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
-       //dvh_sync_d1 <= dvh_sync_i;
-       //my code
-       
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
             Vcount <= 0;
-            // Increment rotation counter each frame (controls spin speed)
-            rotation_counter <= rotation_counter + 1;
+            // Increment rotation angles each frame
+            angle_A <= angle_A + 655;  // ~0.01 radians in fixed point (65536 = 2π)
+            angle_B <= angle_B + 328;  // ~0.005 radians in fixed point
         end else if(h_r) begin
             Vcount <= Vcount + 1;
         end
         h_d <= vh_blank_i[0];
         v_d <= vh_blank_i[1];
-        
-        // Calculate distance from center to current pixel
-        // Using squared distance to avoid sqrt (saves hardware)
-        dx = $signed({1'b0, Hcount}) - $signed({1'b0, CENTER_X});
-        dy = $signed({1'b0, Vcount}) - $signed({1'b0, CENTER_Y});
-        dist_sq = (dx * dx) + (dy * dy);
-        dist_sq_abs = (dist_sq[23])? (~dist_sq + 1) : dist_sq;  // Absolute value
-        
-        radius_sq_outer = DONUT_OUTER * DONUT_OUTER;
-        radius_sq_inner = DONUT_INNER * DONUT_INNER;
-        
-        // Draw donut: pixel is white if it's between inner and outer radius
-        // The rotation_counter adds a phase shift that creates the spinning effect
-        if ((dist_sq_abs <= radius_sq_outer) && (dist_sq_abs >= radius_sq_inner)) begin
-            // Add rotation effect by modulating the color based on angle
-            // Use rotation_counter to create spinning appearance
-            if (((Hcount + Vcount + rotation_counter) % 16) < 8) begin
-                vid_rgb_d1 <= RGB_WHITE;
-            end else begin
-                vid_rgb_d1 <= RGB_COLOUR;
-            end
-        end else begin
-            vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
-        end
-        
-        dvh_sync_d1 <= dvh_sync_i;
-    
     end
     
+end
+
+// Combinational logic for 3D torus rendering
+always @(*) begin
+    // Calculate distance from center in 2D screen space
+    reg signed [31:0] dx, dy;
+    reg signed [31:0] dist_sq;
+    reg signed [15:0] sin_A, cos_A, sin_B, cos_B;
+    reg signed [31:0] temp1, temp2;
+    
+    dx = Hcount - CENTER_X;
+    dy = Vcount - CENTER_Y;
+    dist_sq = (dx * dx) + (dy * dy);
+    
+    // Simplified sine/cosine using angle_A and angle_B
+    // Using table-based approximation for FPGA efficiency
+    sin_A = ((angle_A >> 8) & 255) < 128 ? 
+            (((angle_A >> 8) & 255) - 64) << 7 : 
+            ((192 - ((angle_A >> 8) & 255)) << 7);
+    cos_A = ((angle_A >> 9) & 255) < 128 ? 
+            (((angle_A >> 9) & 255) - 64) << 7 : 
+            ((192 - ((angle_A >> 9) & 255)) << 7);
+    sin_B = ((angle_B >> 8) & 255) < 128 ? 
+            (((angle_B >> 8) & 255) - 64) << 7 : 
+            ((192 - ((angle_B >> 8) & 255)) << 7);
+    cos_B = ((angle_B >> 9) & 255) < 128 ? 
+            (((angle_B >> 9) & 255) - 64) << 7 : 
+            ((192 - ((angle_B >> 9) & 255)) << 7);
+    
+    // Calculate 3D coordinates with rotation
+    // Using approximation: check if point is on torus ring at current angle
+    temp1 = TORUS_R + (TORUS_r >> 1);  // Approximate major radius with minor
+    
+    // If distance is within reasonable range of torus, shade it
+    if ((dist_sq > ((TORUS_R - TORUS_r - 100) * (TORUS_R - TORUS_r - 100))) &&
+        (dist_sq < ((TORUS_R + TORUS_r + 100) * (TORUS_R + TORUS_r + 100)))) begin
+        
+        // Shading based on angle and rotation
+        shading_val = ((angle_A + angle_B + Hcount + Vcount) >> 12) & 8'hFF;
+        
+        if (shading_val < 64) begin
+            vid_rgb_d1 <= 24'hFFFFFF;  // White
+        end else if (shading_val < 128) begin
+            vid_rgb_d1 <= 24'hFF_FF_88;  // Light
+        end else if (shading_val < 192) begin
+            vid_rgb_d1 <= 24'hFF_5A_43;  // Orange
+        end else begin
+            vid_rgb_d1 <= (vid_sel_i)? 24'hFF_5A_43 : vid_rgb_i;  // Background
+        end
+    end else begin
+        vid_rgb_d1 <= (vid_sel_i)? 24'hFF_5A_43 : vid_rgb_i;  // Background
+    end
+    
+    dvh_sync_d1 <= dvh_sync_i;
 end
 
 // OUTPUT
