@@ -8,6 +8,8 @@
 # Allow only specific files in rtl
 !rtl/fpga_top.sv
 !rtl/video_uut.sv
+!rtl/frame_generator.py
+!rtl/donut_data.mem
 
 # Allow .gitignore itself
 !.gitignore
