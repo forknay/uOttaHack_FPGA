@@ -77,6 +77,14 @@ reg [11:0] Vcount;
 // Donut rotation counter
 reg [15:0] rotation_counter;
 
+// Donut calculation variables
+reg signed [23:0] dx;
+reg signed [23:0] dy;
+reg signed [23:0] dist_sq;
+reg [23:0] dist_sq_abs;
+reg [23:0] radius_sq_outer;
+reg [23:0] radius_sq_inner;
+
 
 
 always @(posedge clk_i) begin
@@ -97,42 +105,34 @@ always @(posedge clk_i) begin
         end
         h_d <= vh_blank_i[0];
         v_d <= vh_blank_i[1];
-    
-    end
-    
-    // Calculate distance from center to current pixel
-    // Using squared distance to avoid sqrt (saves hardware)
-    reg signed [23:0] dx;
-    reg signed [23:0] dy;
-    reg signed [23:0] dist_sq;
-    reg [23:0] dist_sq_abs;
-    reg [11:0] radius_sq_outer;
-    reg [11:0] radius_sq_inner;
-    
-    // Distance calculations
-    dx = Hcount - CENTER_X;
-    dy = Vcount - CENTER_Y;
-    dist_sq = (dx * dx) + (dy * dy);
-    dist_sq_abs = (dist_sq[23])? (~dist_sq + 1) : dist_sq;  // Absolute value
-    
-    radius_sq_outer = DONUT_OUTER * DONUT_OUTER;
-    radius_sq_inner = DONUT_INNER * DONUT_INNER;
-    
-    // Draw donut: pixel is white if it's between inner and outer radius
-    // The rotation_counter adds a phase shift that creates the spinning effect
-    if ((dist_sq_abs <= radius_sq_outer) && (dist_sq_abs >= radius_sq_inner)) begin
-        // Add rotation effect by modulating the color based on angle
-        // Use rotation_counter to create spinning appearance
-        if (((Hcount + Vcount + rotation_counter) % 16) < 8) begin
-            vid_rgb_d1 <= RGB_WHITE;
+        
+        // Calculate distance from center to current pixel
+        // Using squared distance to avoid sqrt (saves hardware)
+        dx = $signed({1'b0, Hcount}) - $signed({1'b0, CENTER_X});
+        dy = $signed({1'b0, Vcount}) - $signed({1'b0, CENTER_Y});
+        dist_sq = (dx * dx) + (dy * dy);
+        dist_sq_abs = (dist_sq[23])? (~dist_sq + 1) : dist_sq;  // Absolute value
+        
+        radius_sq_outer = DONUT_OUTER * DONUT_OUTER;
+        radius_sq_inner = DONUT_INNER * DONUT_INNER;
+        
+        // Draw donut: pixel is white if it's between inner and outer radius
+        // The rotation_counter adds a phase shift that creates the spinning effect
+        if ((dist_sq_abs <= radius_sq_outer) && (dist_sq_abs >= radius_sq_inner)) begin
+            // Add rotation effect by modulating the color based on angle
+            // Use rotation_counter to create spinning appearance
+            if (((Hcount + Vcount + rotation_counter) % 16) < 8) begin
+                vid_rgb_d1 <= RGB_WHITE;
+            end else begin
+                vid_rgb_d1 <= RGB_COLOUR;
+            end
         end else begin
-            vid_rgb_d1 <= RGB_COLOUR;
+            vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
         end
-    end else begin
-        vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
-    end
+        
+        dvh_sync_d1 <= dvh_sync_i;
     
-    dvh_sync_d1 <= dvh_sync_i;
+    end
     
 end
 
