@@ -49,7 +49,7 @@ localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 localparam [11:0] SQUARE_WIDTH = 320;
 localparam [11:0] SQUARE_HEIGHT = 320;
 localparam [11:0] SCREEN_WIDTH = 1920;
-localparam [11:0] SCREEN_HEIGHT = 1080;
+localparam [11:0] SCREEN_HEIGHT = 1125;
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
@@ -76,7 +76,25 @@ reg [11:0] sq_y;  // Square Y position (top edge)
 reg dir_x;        // X direction: 0=left, 1=right
 reg dir_y;        // Y direction: 0=up, 1=down
 
+// RAM interface signals
+wire [14:0] addr_rd;
+wire [14:0] addr_wr;
+wire [3:0] data_i;
+wire [3:0] data_o;
 
+// RAM address calculation: row * width + column (120 x 160 image)
+assign addr_rd = Vcount * 12'd120 + Hcount;
+assign addr_wr = 15'd0;  // Not writing
+assign data_i = 4'd0;    // Not writing
+
+donut_ram donut_ram_inst(
+    .clk_i (clk_i)           ,// clock
+    .cen_i (cen_i)           ,// clock enable
+    .addr_rd (addr_rd)       ,// Reading Address
+    .addr_wr (addr_wr)       ,// Writing Address
+    .data_i (data_i)        ,// Data Input
+    .data_o (data_o)        //Data output
+); 
 
 always @(posedge clk_i) begin
     // ALL OF OUR CALCULATIONS PER PIXEL
@@ -111,7 +129,7 @@ always @(posedge clk_i) begin
                 else
                     sq_y <= sq_y + 5;  // Move down by 5 pixels
             end else begin  // Moving up
-                if (sq_y <= 1)
+                if (sq_y <= 42)
                     dir_y <= 1;  // Hit top edge, go down
                 else
                     sq_y <= sq_y - 5;  // Move up by 5 pixels
