@@ -45,6 +45,12 @@ module video_uut (
 localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
 localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
+// Square dimensions and screen size
+localparam [11:0] SQUARE_WIDTH = 320;
+localparam [11:0] SQUARE_HEIGHT = 280;
+localparam [11:0] SCREEN_WIDTH = 1920;
+localparam [11:0] SCREEN_HEIGHT = 1080;
+
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
 
@@ -64,6 +70,12 @@ reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
 
+// Bouncing square position and direction
+reg [11:0] sq_x;  // Square X position (left edge)
+reg [11:0] sq_y;  // Square Y position (top edge)
+reg dir_x;        // X direction: 0=left, 1=right
+reg dir_y;        // Y direction: 0=up, 1=down
+
 
 
 always @(posedge clk_i) begin
@@ -77,6 +89,34 @@ always @(posedge clk_i) begin
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
             Vcount <= 0;
+            
+            // Update square position once per frame
+            // Update X position
+            if (dir_x) begin  // Moving right
+                if (sq_x + SQUARE_WIDTH >= SCREEN_WIDTH - 1)
+                    dir_x <= 0;  // Hit right edge, go left
+                else
+                    sq_x <= sq_x + 5;  // Move right by 5 pixels
+            end else begin  // Moving left
+                if (sq_x <= 1)
+                    dir_x <= 1;  // Hit left edge, go right
+                else
+                    sq_x <= sq_x - 5;  // Move left by 5 pixels
+            end
+            
+            // Update Y position
+            if (dir_y) begin  // Moving down
+                if (sq_y + SQUARE_HEIGHT >= SCREEN_HEIGHT - 1)
+                    dir_y <= 0;  // Hit bottom edge, go up
+                else
+                    sq_y <= sq_y + 5;  // Move down by 5 pixels
+            end else begin  // Moving up
+                if (sq_y <= 1)
+                    dir_y <= 1;  // Hit top edge, go down
+                else
+                    sq_y <= sq_y - 5;  // Move up by 5 pixels
+            end
+            
         end else if(h_r) begin
             Vcount <= Vcount + 1;
         end
@@ -88,8 +128,9 @@ always @(posedge clk_i) begin
     // Basically depending on the Vcount and Hcount, we can decide whether
     // to show the background or our own calculated pixel color
     
-    // Draw white square between Vcount (400-680) and Hcount (800-1120)
-    if ((Vcount >= 400 && Vcount <= 680) && (Hcount >= 800 && Hcount <= 1120)) begin
+    // Draw white bouncing square
+    if ((Hcount >= sq_x && Hcount < sq_x + SQUARE_WIDTH) && 
+        (Vcount >= sq_y && Vcount < sq_y + SQUARE_HEIGHT)) begin
         vid_rgb_d1 <= RGB_WHITE;
     end else begin
         vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
