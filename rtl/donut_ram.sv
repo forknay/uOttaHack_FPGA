@@ -19,3 +19,7 @@ always @(posedge clk_i) begin
         data <= ram[addr_rd];
     end
 end
+
+assign data_o = data;
+
+endmodule
