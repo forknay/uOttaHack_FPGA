@@ -47,7 +47,7 @@ localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
 // Square dimensions and screen size
 localparam [11:0] SQUARE_WIDTH = 320;
-localparam [11:0] SQUARE_HEIGHT = 280;
+localparam [11:0] SQUARE_HEIGHT = 320;
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1080;
 
@@ -55,13 +55,13 @@ reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
 
 // my wires
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire h_r = vh_blank_i[0] & ~h_d;  // horizontal blank rising edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire h_f = ~vh_blank_i[0] & h_d;  // horizontal blank falling edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire v_r = vh_blank_i[1] & ~v_d;  // vertical blank rising edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire v_f = ~vh_blank_i[1] & v_d;  // vertical blank falling edge
 
 // my regs
@@ -98,7 +98,7 @@ always @(posedge clk_i) begin
                 else
                     sq_x <= sq_x + 5;  // Move right by 5 pixels
             end else begin  // Moving left
-                if (sq_x <= 1)
+                if (sq_x <= 0)
                     dir_x <= 1;  // Hit left edge, go right
                 else
                     sq_x <= sq_x - 5;  // Move left by 5 pixels
