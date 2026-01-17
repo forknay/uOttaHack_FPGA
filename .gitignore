@@ -16,3 +16,7 @@
 !.gitignore
 
 !readme.md
+!sine.mem
+!rtl/sine_ram.sv
+!rtl/cosine.mem
+!rtl/cosine_ram.sv
