@@ -1,0 +1,13 @@
+# Ignore everything by default
+*
+*/
+
+# Allow the rtl directory
+!rtl/
+
+# Allow only specific files in rtl
+!rtl/fpga_top.sv
+!rtl/video_uut.sv
+
+# Allow .gitignore itself
+!.gitignore
