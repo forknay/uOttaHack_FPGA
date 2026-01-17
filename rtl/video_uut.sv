@@ -45,11 +45,15 @@ module video_uut (
 localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
 localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
-// Square dimensions and screen size
-localparam [11:0] SQUARE_WIDTH = 320;
-localparam [11:0] SQUARE_HEIGHT = 320;
+// Screen size
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1080;
+
+// Donut parameters
+localparam [11:0] CENTER_X = 960;      // Center of screen
+localparam [11:0] CENTER_Y = 540;      // Center of screen
+localparam [11:0] DONUT_OUTER = 300;   // Outer radius
+localparam [11:0] DONUT_INNER = 150;   // Inner radius (hole)
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
@@ -70,11 +74,8 @@ reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
 
-// Bouncing square position and direction
-reg [11:0] sq_x;  // Square X position (left edge)
-reg [11:0] sq_y;  // Square Y position (top edge)
-reg dir_x;        // X direction: 0=left, 1=right
-reg dir_y;        // Y direction: 0=up, 1=down
+// Donut rotation counter
+reg [15:0] rotation_counter;
 
 
 
@@ -89,34 +90,8 @@ always @(posedge clk_i) begin
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
             Vcount <= 0;
-            
-            // Update square position once per frame
-            // Update X position
-            if (dir_x) begin  // Moving right
-                if (sq_x + SQUARE_WIDTH >= SCREEN_WIDTH - 1)
-                    dir_x <= 0;  // Hit right edge, go left
-                else
-                    sq_x <= sq_x + 5;  // Move right by 5 pixels
-            end else begin  // Moving left
-                if (sq_x <= 0)
-                    dir_x <= 1;  // Hit left edge, go right
-                else
-                    sq_x <= sq_x - 5;  // Move left by 5 pixels
-            end
-            
-            // Update Y position
-            if (dir_y) begin  // Moving down
-                if (sq_y + SQUARE_HEIGHT >= SCREEN_HEIGHT - 1)
-                    dir_y <= 0;  // Hit bottom edge, go up
-                else
-                    sq_y <= sq_y + 5;  // Move down by 5 pixels
-            end else begin  // Moving up
-                if (sq_y <= 1)
-                    dir_y <= 1;  // Hit top edge, go down
-                else
-                    sq_y <= sq_y - 5;  // Move up by 5 pixels
-            end
-            
+            // Increment rotation counter each frame (controls spin speed)
+            rotation_counter <= rotation_counter + 1;
         end else if(h_r) begin
             Vcount <= Vcount + 1;
         end
@@ -124,14 +99,35 @@ always @(posedge clk_i) begin
         v_d <= vh_blank_i[1];
     
     end
-    // Currently still base condition, so will always display "background bars"
-    // Basically depending on the Vcount and Hcount, we can decide whether
-    // to show the background or our own calculated pixel color
     
-    // Draw white bouncing square
-    if ((Hcount >= sq_x && Hcount < sq_x + SQUARE_WIDTH) && 
-        (Vcount >= sq_y && Vcount < sq_y + SQUARE_HEIGHT)) begin
-        vid_rgb_d1 <= RGB_WHITE;
+    // Calculate distance from center to current pixel
+    // Using squared distance to avoid sqrt (saves hardware)
+    reg signed [23:0] dx;
+    reg signed [23:0] dy;
+    reg signed [23:0] dist_sq;
+    reg [23:0] dist_sq_abs;
+    reg [11:0] radius_sq_outer;
+    reg [11:0] radius_sq_inner;
+    
+    // Distance calculations
+    dx = Hcount - CENTER_X;
+    dy = Vcount - CENTER_Y;
+    dist_sq = (dx * dx) + (dy * dy);
+    dist_sq_abs = (dist_sq[23])? (~dist_sq + 1) : dist_sq;  // Absolute value
+    
+    radius_sq_outer = DONUT_OUTER * DONUT_OUTER;
+    radius_sq_inner = DONUT_INNER * DONUT_INNER;
+    
+    // Draw donut: pixel is white if it's between inner and outer radius
+    // The rotation_counter adds a phase shift that creates the spinning effect
+    if ((dist_sq_abs <= radius_sq_outer) && (dist_sq_abs >= radius_sq_inner)) begin
+        // Add rotation effect by modulating the color based on angle
+        // Use rotation_counter to create spinning appearance
+        if (((Hcount + Vcount + rotation_counter) % 16) < 8) begin
+            vid_rgb_d1 <= RGB_WHITE;
+        end else begin
+            vid_rgb_d1 <= RGB_COLOUR;
+        end
     end else begin
         vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
     end
