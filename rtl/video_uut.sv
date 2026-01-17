@@ -20,20 +20,28 @@ video_uut video_uut (
 
 -------------------------------------------------------------------------- */
 
-
 module video_uut (
+    (* mark_debug = "true", keep = "true" *)
     input  wire         clk_i           ,// clock
+    (* mark_debug = "true", keep = "true" *)
     input  wire         cen_i           ,// clock enable
+    (* mark_debug = "true", keep = "true" *)
     input  wire         rst_i           ,// reset
+    (* mark_debug = "true", keep = "true" *)
     input  wire         vid_sel_i       ,// select between video sources
+    (* mark_debug = "true", keep = "true" *)
     input  wire [23:0]  vid_rgb_i       ,// [23:0] = R[23:16], G[15:8], B[7:0]
+    (* mark_debug = "true", keep = "true" *)
     input  wire [1:0]   vh_blank_i      ,// input  video timing signals
+    (* mark_debug = "true", keep = "true" *)
     input  wire [2:0]   dvh_sync_i      ,// HDMI timing signals
+    (* mark_debug = "true", keep = "true" *)
     output wire [2:0]   dvh_sync_o      ,// HDMI timing signals delayed
+    (* mark_debug = "true", keep = "true" *)
     output wire [23:0]  vid_rgb_o        // [23:0] = R[23:16], G[15:8], B[7:0]
 ); 
 
-localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
+localparam [23:0] RGB_COLOUR = 24'hD0_10_80; // R=128, G=16,  B=128
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
