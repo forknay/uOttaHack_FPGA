@@ -20,6 +20,7 @@ video_uut video_uut (
 
 -------------------------------------------------------------------------- */
 
+
 module video_uut (
     (* mark_debug = "true", keep = "true" *)
     input  wire         clk_i           ,// clock
@@ -40,17 +41,51 @@ module video_uut (
     (* mark_debug = "true", keep = "true" *)
     output wire [23:0]  vid_rgb_o        // [23:0] = R[23:16], G[15:8], B[7:0]
 ); 
-
-localparam [23:0] RGB_COLOUR = 24'hD0_10_80; // R=128, G=16,  B=128
+ 
+localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
+localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
 
+// my wires
+wire h_r = vh_blank_i[0] & ~h_d;  // horizontal blank rising edge
+wire h_f = ~vh_blank_i[0] & h_d;  // horizontal blank falling edge
+wire v_r = vh_blank_i[1] & ~v_d;  // vertical blank rising edge
+wire v_f = ~vh_blank_i[1] & v_d;  // vertical blank falling edge
+
+// my regs
+reg h_d;
+reg v_d;
+reg [11:0] Hcount;
+reg [11:0] Vcount;
+
+
+
 always @(posedge clk_i) begin
+    // ALL OF OUR CALCULATIONS PER PIXEL
+    
     if(cen_i) begin
-       vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
-       dvh_sync_d1 <= dvh_sync_i;
+       //vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
+       //dvh_sync_d1 <= dvh_sync_i;
+       //my code
+       
+       Hcount <= (h_f)? (0) : (Hcount + 1);
+       if(v_r && h_r) begin
+            Vcount <= 0;
+        end else if(h_r) begin
+            Vcount <= Vcount + 1;
+        end
+        h_d <= vh_blank_i[0];
+        v_d <= vh_blank_i[1];
+    
     end
+    // Currently still base condition, so will always display "background bars"
+    // Basically depending on the Vcount and Hcount, we can decide whether
+    // to show the background or our own calculated pixel color
+    vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
+    dvh_sync_d1 <= dvh_sync_i;
+    
 end
 
 // OUTPUT
