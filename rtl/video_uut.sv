@@ -49,9 +49,13 @@ reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
 
 // my wires
+    (* mark_debug = "true", keep = "true" *)
 wire h_r = vh_blank_i[0] & ~h_d;  // horizontal blank rising edge
+    (* mark_debug = "true", keep = "true" *)
 wire h_f = ~vh_blank_i[0] & h_d;  // horizontal blank falling edge
+    (* mark_debug = "true", keep = "true" *)
 wire v_r = vh_blank_i[1] & ~v_d;  // vertical blank rising edge
+    (* mark_debug = "true", keep = "true" *)
 wire v_f = ~vh_blank_i[1] & v_d;  // vertical blank falling edge
 
 // my regs
@@ -83,7 +87,14 @@ always @(posedge clk_i) begin
     // Currently still base condition, so will always display "background bars"
     // Basically depending on the Vcount and Hcount, we can decide whether
     // to show the background or our own calculated pixel color
-    vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
+    
+    // Draw white square between Vcount (400-680) and Hcount (800-1120)
+    if ((Vcount >= 400 && Vcount <= 680) && (Hcount >= 800 && Hcount <= 1120)) begin
+        vid_rgb_d1 <= RGB_WHITE;
+    end else begin
+        vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
+    end
+    
     dvh_sync_d1 <= dvh_sync_i;
     
 end
