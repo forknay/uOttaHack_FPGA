@@ -45,9 +45,11 @@ module video_uut (
 localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
 localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
-// Square dimensions and screen size
-localparam [11:0] SQUARE_WIDTH = 320;
-localparam [11:0] SQUARE_HEIGHT = 320;
+
+// Donut dimensions and screen size
+localparam [11:0] DONUT_WIDTH = 400;
+localparam [11:0] DONUT_HEIGHT = 176;
+
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1125;
 
@@ -70,31 +72,27 @@ reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
 
-// Bouncing square position and direction
-reg [11:0] sq_x;  // Square X position (left edge)
-reg [11:0] sq_y;  // Square Y position (top edge)
-reg dir_x;        // X direction: 0=left, 1=right
-reg dir_y;        // Y direction: 0=up, 1=down
+// Donut ROM signals
+wire [3:0] donut_lum;
+reg [31:0] donut_addr;
+reg [11:0] donut_x_rel;
+reg [11:0] donut_y_rel;
+reg [7:0] brightness;
+reg [8:0] r_temp, g_temp, b_temp;
+reg [23:0] bg_color;
+localparam [11:0] DONUT_X_START = (SCREEN_WIDTH - DONUT_WIDTH) / 2;  // Center X
+localparam [11:0] DONUT_Y_START = (SCREEN_HEIGHT - DONUT_HEIGHT) / 2; // Center Y
 
-// RAM interface signals
-wire [14:0] addr_rd;
-wire [14:0] addr_wr;
-wire [3:0] data_i;
-wire [3:0] data_o;
 
-// RAM address calculation: row * width + column (120 x 160 image)
-assign addr_rd = Vcount * 12'd120 + Hcount;
-assign addr_wr = 15'd0;  // Not writing
-assign data_i = 4'd0;    // Not writing
 
-donut_ram donut_ram_inst(
-    .clk_i (clk_i)           ,// clock
-    .cen_i (cen_i)           ,// clock enable
-    .addr_rd (addr_rd)       ,// Reading Address
-    .addr_wr (addr_wr)       ,// Writing Address
-    .data_i (data_i)        ,// Data Input
-    .data_o (data_o)        //Data output
-); 
+// Donut ROM instantiation
+donut_rom donut_rom_inst (
+    .clk_i(clk_i),
+    .cen_i(cen_i),
+    .addr_rd(donut_addr),
+    //.addr_wr(),
+    .data_o(donut_lum)
+);
 
 always @(posedge clk_i) begin
     // ALL OF OUR CALCULATIONS PER PIXEL
@@ -107,34 +105,6 @@ always @(posedge clk_i) begin
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
             Vcount <= 0;
-            
-            // Update square position once per frame
-            // Update X position
-            if (dir_x) begin  // Moving right
-                if (sq_x + SQUARE_WIDTH >= SCREEN_WIDTH - 1)
-                    dir_x <= 0;  // Hit right edge, go left
-                else
-                    sq_x <= sq_x + 5;  // Move right by 5 pixels
-            end else begin  // Moving left
-                if (sq_x <= 0)
-                    dir_x <= 1;  // Hit left edge, go right
-                else
-                    sq_x <= sq_x - 5;  // Move left by 5 pixels
-            end
-            
-            // Update Y position
-            if (dir_y) begin  // Moving down
-                if (sq_y + SQUARE_HEIGHT >= SCREEN_HEIGHT - 1)
-                    dir_y <= 0;  // Hit bottom edge, go up
-                else
-                    sq_y <= sq_y + 5;  // Move down by 5 pixels
-            end else begin  // Moving up
-                if (sq_y <= 42)
-                    dir_y <= 1;  // Hit top edge, go down
-                else
-                    sq_y <= sq_y - 5;  // Move up by 5 pixels
-            end
-            
         end else if(h_r) begin
             Vcount <= Vcount + 1;
         end
@@ -142,15 +112,35 @@ always @(posedge clk_i) begin
         v_d <= vh_blank_i[1];
     
     end
-    // Currently still base condition, so will always display "background bars"
-    // Basically depending on the Vcount and Hcount, we can decide whether
-    // to show the background or our own calculated pixel color
-    
-    // Draw white bouncing square
-    if ((Hcount >= sq_x && Hcount < sq_x + SQUARE_WIDTH) && 
-        (Vcount >= sq_y && Vcount < sq_y + SQUARE_HEIGHT)) begin
-        vid_rgb_d1 <= RGB_WHITE;
+    // Display donut from ROM, centered on screen
+    // Check if current pixel is within donut bounds
+    if ((Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
+        (Vcount >= DONUT_Y_START && Vcount < DONUT_Y_START + DONUT_HEIGHT)) begin
+        
+        // Calculate address in donut ROM based on relative position
+        donut_x_rel <= Hcount - DONUT_X_START;
+        donut_y_rel <= Vcount - DONUT_Y_START;
+        donut_addr <= (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
+        
+        // Get actual background color (changes based on vid_sel_i)
+        bg_color <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+        
+        // Check if luminance is 0 (transparent - show background)
+        if (donut_lum == 4'h0) begin
+            vid_rgb_d1 <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+        end else begin
+            // Scale luminance value (1-15) to RGB color starting from actual background
+            // Higher luminance = brighter (adds to base color)
+            brightness <= {donut_lum, donut_lum};  // 4-bit to 8-bit scaling (e.g., 0xF -> 0xFF)
+            r_temp = {1'b0, bg_color[23:16]} + {1'b0, brightness};  // R channel + brightness
+            g_temp = {1'b0, bg_color[15:8]} + {1'b0, brightness};   // G channel + brightness
+            b_temp = {1'b0, bg_color[7:0]} + {1'b0, brightness};    // B channel + brightness
+            vid_rgb_d1 <= {(r_temp > 255) ? 8'hFF : r_temp[7:0],
+                           (g_temp > 255) ? 8'hFF : g_temp[7:0],
+                           (b_temp > 255) ? 8'hFF : b_temp[7:0]};
+        end
     end else begin
+        donut_addr <= 15'b0;
         vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
     end
     

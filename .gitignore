@@ -10,6 +10,11 @@
 !rtl/video_uut.sv
 !rtl/frame_generator.py
 !rtl/donut_data.mem
+!rtl/donut_rom.sv
+
+# Allow .gitignore itself
+!.gitignore
+!readme.md
 !rtl/donut_ram.sv
 
 # Allow .gitignore itself
