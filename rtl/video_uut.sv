@@ -71,7 +71,14 @@ reg h_d;
 reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
-reg [3:0] count;
+
+// Animation parameters
+localparam [21:0] FRAME_SIZE = 70400;  // 400 × 176 pixels per frame
+localparam [7:0] NUM_FRAMES = 10;      // Total number of frames
+reg [7:0] frame_counter;                // Current frame (0-9)
+reg [7:0] frame_delay_counter;          // Frame rate control
+localparam [7:0] DELAY_COUNT = 6;       // ~60Hz / 10fps = 6 vsyncs per frame
+
 // Donut ROM signals
 wire [3:0] donut_lum;
 reg [31:0] donut_addr;
@@ -101,14 +108,19 @@ always @(posedge clk_i) begin
        //vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
        //dvh_sync_d1 <= dvh_sync_i;
        //my code
-
-       if (Hcount == 0 && Vcount==0) begin
-            count <= count +1;
-       end
        
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
             Vcount <= 0;
+            
+            // Frame animation counter
+            if (frame_delay_counter >= DELAY_COUNT - 1) begin
+                frame_delay_counter <= 0;
+                // Advance to next frame (loop back to 0)
+                frame_counter <= (frame_counter >= NUM_FRAMES - 1) ? 8'd0 : frame_counter + 1;
+            end else begin
+                frame_delay_counter <= frame_delay_counter + 1;
+            end
         end else if(h_r) begin
             Vcount <= Vcount + 1;
         end
@@ -118,15 +130,14 @@ always @(posedge clk_i) begin
     end
     // Display donut from ROM, centered on screen
     // Check if current pixel is within donut bounds
-    if ((count ==15 && Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
+    if ((Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
         (Vcount >= DONUT_Y_START && Vcount < DONUT_Y_START + DONUT_HEIGHT)) begin
-        if(donut_addr> 161002) begin
-            donut_addr <=0;
-        end
+        
         // Calculate address in donut ROM based on relative position
         donut_x_rel <= Hcount - DONUT_X_START;
         donut_y_rel <= Vcount - DONUT_Y_START;
-        donut_addr <= (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
+        // Calculate final ROM address: frame_offset + pixel_offset
+        donut_addr <= (frame_counter * FRAME_SIZE) + (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
         
         // Get actual background color (changes based on vid_sel_i)
         bg_color <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;

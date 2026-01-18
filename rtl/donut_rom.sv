@@ -7,7 +7,7 @@ module donut_rom (
     output wire [3:0]  data_o        // 
 ); 
 
-reg [3:0] rom [0:70399]; // 400x176 = 70,400 x 4-bit ROM
+reg [3:0] rom [0:703999]; // 10 frames × 70,400 = 704,000 x 4-bit ROM
 reg [3:0] data;
 initial begin
     $readmemh("donut_data.mem", rom);
