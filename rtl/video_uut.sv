@@ -46,8 +46,8 @@ localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
 localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
 // Donut dimensions and screen size
-localparam [11:0] DONUT_WIDTH = 160;
-localparam [11:0] DONUT_HEIGHT = 120;
+localparam [11:0] DONUT_WIDTH = 400;
+localparam [11:0] DONUT_HEIGHT = 176;
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1080;
 
@@ -72,10 +72,12 @@ reg [11:0] Vcount;
 
 // Donut ROM signals
 wire [3:0] donut_lum;
-reg [14:0] donut_addr;
+reg [31:0] donut_addr;
 reg [11:0] donut_x_rel;
 reg [11:0] donut_y_rel;
 reg [7:0] brightness;
+reg [8:0] r_temp, g_temp, b_temp;
+reg [23:0] bg_color;
 localparam [11:0] DONUT_X_START = (SCREEN_WIDTH - DONUT_WIDTH) / 2;  // Center X
 localparam [11:0] DONUT_Y_START = (SCREEN_HEIGHT - DONUT_HEIGHT) / 2; // Center Y
 
@@ -86,7 +88,7 @@ donut_rom donut_rom_inst (
     .clk_i(clk_i),
     .cen_i(cen_i),
     .addr_rd(donut_addr),
-    .addr_wr(15'b0),
+    //.addr_wr(),
     .data_o(donut_lum)
 );
 
@@ -118,10 +120,23 @@ always @(posedge clk_i) begin
         donut_y_rel <= Vcount - DONUT_Y_START;
         donut_addr <= (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
         
-        // Scale luminance value (0-15) to RGB color
-        // Higher luminance = brighter
-        brightness <= {donut_lum, donut_lum};  // 4-bit to 8-bit scaling (e.g., 0xF -> 0xFF)
-        vid_rgb_d1 <= {brightness, brightness, brightness};  // Gray scale output
+        // Get actual background color (changes based on vid_sel_i)
+        bg_color <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+        
+        // Check if luminance is 0 (transparent - show background)
+        if (donut_lum == 4'h0) begin
+            vid_rgb_d1 <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+        end else begin
+            // Scale luminance value (1-15) to RGB color starting from actual background
+            // Higher luminance = brighter (adds to base color)
+            brightness <= {donut_lum, donut_lum};  // 4-bit to 8-bit scaling (e.g., 0xF -> 0xFF)
+            r_temp = {1'b0, bg_color[23:16]} + {1'b0, brightness};  // R channel + brightness
+            g_temp = {1'b0, bg_color[15:8]} + {1'b0, brightness};   // G channel + brightness
+            b_temp = {1'b0, bg_color[7:0]} + {1'b0, brightness};    // B channel + brightness
+            vid_rgb_d1 <= {(r_temp > 255) ? 8'hFF : r_temp[7:0],
+                           (g_temp > 255) ? 8'hFF : g_temp[7:0],
+                           (b_temp > 255) ? 8'hFF : b_temp[7:0]};
+        end
     end else begin
         donut_addr <= 15'b0;
         vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
