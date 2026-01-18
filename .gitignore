@@ -15,3 +15,13 @@
 # Allow .gitignore itself
 !.gitignore
 !readme.md
+!rtl/donut_ram.sv
+
+# Allow .gitignore itself
+!.gitignore
+
+!readme.md
+!sine.mem
+!rtl/sine_ram.sv
+!rtl/cosine.mem
+!rtl/cosine_ram.sv

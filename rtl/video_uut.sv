@@ -45,23 +45,25 @@ module video_uut (
 localparam [23:0] RGB_COLOUR = 24'hFF_5A_43; // R=128, G=16,  B=128
 localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
+
 // Donut dimensions and screen size
 localparam [11:0] DONUT_WIDTH = 400;
 localparam [11:0] DONUT_HEIGHT = 176;
+
 localparam [11:0] SCREEN_WIDTH = 1920;
-localparam [11:0] SCREEN_HEIGHT = 1080;
+localparam [11:0] SCREEN_HEIGHT = 1125;
 
 reg [23:0]  vid_rgb_d1;
 reg [2:0]   dvh_sync_d1;
 
 // my wires
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire h_r = vh_blank_i[0] & ~h_d;  // horizontal blank rising edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire h_f = ~vh_blank_i[0] & h_d;  // horizontal blank falling edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire v_r = vh_blank_i[1] & ~v_d;  // vertical blank rising edge
-    (* mark_debug = "true", keep = "true" *)
+(* mark_debug = "true", keep = "true" *)
 wire v_f = ~vh_blank_i[1] & v_d;  // vertical blank falling edge
 
 // my regs
