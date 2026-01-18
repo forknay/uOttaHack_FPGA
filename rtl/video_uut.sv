@@ -71,7 +71,7 @@ reg h_d;
 reg v_d;
 reg [11:0] Hcount;
 reg [11:0] Vcount;
-
+reg [3:0] count;
 // Donut ROM signals
 wire [3:0] donut_lum;
 reg [31:0] donut_addr;
@@ -101,6 +101,10 @@ always @(posedge clk_i) begin
        //vid_rgb_d1  <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
        //dvh_sync_d1 <= dvh_sync_i;
        //my code
+
+        if (Hcount == 0 && Vcount == 0) begin
+            count <= count + 1;
+        end
        
        Hcount <= (h_f)? (0) : (Hcount + 1);
        if(v_r && h_r) begin
@@ -114,9 +118,11 @@ always @(posedge clk_i) begin
     end
     // Display donut from ROM, centered on screen
     // Check if current pixel is within donut bounds
-    if ((Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
+    if (count == 15 && (Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
         (Vcount >= DONUT_Y_START && Vcount < DONUT_Y_START + DONUT_HEIGHT)) begin
-        
+        if (donut_addr > 161002) begin
+            donut_addr <= 0;
+        end
         // Calculate address in donut ROM based on relative position
         donut_x_rel <= Hcount - DONUT_X_START;
         donut_y_rel <= Vcount - DONUT_Y_START;
