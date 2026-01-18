@@ -47,8 +47,8 @@ localparam [23:0] RGB_WHITE = 24'hFF_FF_FF; // R=255, G=255, B=255
 
 
 // Donut dimensions and screen size
-localparam [11:0] DONUT_WIDTH = 400;
-localparam [11:0] DONUT_HEIGHT = 176;
+localparam [11:0] DONUT_WIDTH = 800;
+localparam [11:0] DONUT_HEIGHT = 352;
 
 localparam [11:0] SCREEN_WIDTH = 1920;
 localparam [11:0] SCREEN_HEIGHT = 1125;
@@ -73,11 +73,11 @@ reg [11:0] Hcount;
 reg [11:0] Vcount;
 
 // Animation parameters
-localparam [21:0] FRAME_SIZE = 70400;  // 400 × 176 pixels per frame
-localparam [7:0] NUM_FRAMES = 10;      // Total number of frames
+localparam [21:0] FRAME_SIZE = 281600;  // 800 x 352 pixels per frame
+localparam [7:0] NUM_FRAMES = 60;      // Total number of frames
 reg [7:0] frame_counter;                // Current frame (0-9)
 reg [7:0] frame_delay_counter;          // Frame rate control
-localparam [7:0] DELAY_COUNT = 6;       // ~60Hz / 10fps = 6 vsyncs per frame
+localparam [7:0] DELAY_COUNT = 4;       // ~60Hz / 15fps = 4 vsyncs per frame
 
 // Donut ROM signals
 wire [3:0] donut_lum;
@@ -126,42 +126,42 @@ always @(posedge clk_i) begin
         end
         h_d <= vh_blank_i[0];
         v_d <= vh_blank_i[1];
-    
-    end
-    // Display donut from ROM, centered on screen
-    // Check if current pixel is within donut bounds
-    if ((Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
-        (Vcount >= DONUT_Y_START && Vcount < DONUT_Y_START + DONUT_HEIGHT)) begin
         
-        // Calculate address in donut ROM based on relative position
-        donut_x_rel <= Hcount - DONUT_X_START;
-        donut_y_rel <= Vcount - DONUT_Y_START;
-        // Calculate final ROM address: frame_offset + pixel_offset
-        donut_addr <= (frame_counter * FRAME_SIZE) + (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
-        
-        // Get actual background color (changes based on vid_sel_i)
-        bg_color <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
-        
-        // Check if luminance is 0 (transparent - show background)
-        if (donut_lum == 4'h0) begin
-            vid_rgb_d1 <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+        // Display donut from ROM, centered on screen
+        // Check if current pixel is within donut bounds
+        if ((Hcount >= DONUT_X_START && Hcount < DONUT_X_START + DONUT_WIDTH) && 
+            (Vcount >= DONUT_Y_START && Vcount < DONUT_Y_START + DONUT_HEIGHT)) begin
+            
+            // Calculate address in donut ROM based on relative position
+            donut_x_rel <= Hcount - DONUT_X_START;
+            donut_y_rel <= Vcount - DONUT_Y_START;
+            // Calculate final ROM address: frame_offset + pixel_offset
+            donut_addr <= (frame_counter * FRAME_SIZE) + (donut_y_rel * DONUT_WIDTH) + donut_x_rel;
+            
+            // Get actual background color (changes based on vid_sel_i)
+            bg_color <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+            
+            // Check if luminance is 0 (transparent - show background)
+            if (donut_lum == 4'h0) begin
+                vid_rgb_d1 <= (vid_sel_i) ? RGB_COLOUR : vid_rgb_i;
+            end else begin
+                // Scale luminance value (1-15) to RGB color starting from actual background
+                // Higher luminance = brighter (adds to base color)
+                brightness <= {donut_lum, donut_lum};  // 4-bit to 8-bit scaling (e.g., 0xF -> 0xFF)
+                r_temp = {1'b0, bg_color[23:16]} + {1'b0, brightness};  // R channel + brightness
+                g_temp = {1'b0, bg_color[15:8]} + {1'b0, brightness};   // G channel + brightness
+                b_temp = {1'b0, bg_color[7:0]} + {1'b0, brightness};    // B channel + brightness
+                vid_rgb_d1 <= {(r_temp > 255) ? 8'hFF : r_temp[7:0],
+                               (g_temp > 255) ? 8'hFF : g_temp[7:0],
+                               (b_temp > 255) ? 8'hFF : b_temp[7:0]};
+            end
         end else begin
-            // Scale luminance value (1-15) to RGB color starting from actual background
-            // Higher luminance = brighter (adds to base color)
-            brightness <= {donut_lum, donut_lum};  // 4-bit to 8-bit scaling (e.g., 0xF -> 0xFF)
-            r_temp = {1'b0, bg_color[23:16]} + {1'b0, brightness};  // R channel + brightness
-            g_temp = {1'b0, bg_color[15:8]} + {1'b0, brightness};   // G channel + brightness
-            b_temp = {1'b0, bg_color[7:0]} + {1'b0, brightness};    // B channel + brightness
-            vid_rgb_d1 <= {(r_temp > 255) ? 8'hFF : r_temp[7:0],
-                           (g_temp > 255) ? 8'hFF : g_temp[7:0],
-                           (b_temp > 255) ? 8'hFF : b_temp[7:0]};
+            donut_addr <= 15'b0;
+            vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
         end
-    end else begin
-        donut_addr <= 15'b0;
-        vid_rgb_d1 <= (vid_sel_i)? RGB_COLOUR : vid_rgb_i;
+        
+        dvh_sync_d1 <= dvh_sync_i;
     end
-    
-    dvh_sync_d1 <= dvh_sync_i;
     
 end
 
